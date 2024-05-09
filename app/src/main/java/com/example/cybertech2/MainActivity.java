@@ -1,6 +1,8 @@
 package com.example.cybertech2;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
@@ -16,7 +18,7 @@ import org.opencv.android.OpenCVLoader;
 
 public class MainActivity extends AppCompatActivity {
     private Button applyButton;
-    private Button cameraButton;
+    //private Button cameraButton;
     private ImageView imageView;
 
     @Override
@@ -33,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
         //SETUP
         applyButton = (Button)findViewById(R.id.apply_button);
-        cameraButton = (Button)findViewById(R.id.camera_button);
+        //cameraButton = (Button)findViewById(R.id.camera_button);
         imageView = (ImageView)findViewById(R.id.imageView);
         //imageView.setImageDrawable(R.drawable.henry);
 
@@ -44,5 +46,11 @@ public class MainActivity extends AppCompatActivity {
     public void addListeners()
     {
         applyButton.setOnClickListener(new ImageChangeListener(imageView));
+    }
+
+    public void callCameraActivity(View view)
+    {
+        Intent intent = new Intent(getApplicationContext(), CameraActivity.class);
+        startActivity(intent);
     }
 }
