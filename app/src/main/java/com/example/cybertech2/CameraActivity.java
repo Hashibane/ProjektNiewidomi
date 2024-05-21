@@ -4,14 +4,24 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
+import android.graphics.YuvImage;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -27,6 +37,14 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import com.example.cybertech2.CameraClasses.ImageUtilClass;
+
+import org.opencv.android.Utils;
+import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,7 +52,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class CameraActivity extends AppCompatActivity {
-
+//Konrad
     private static final int REQUEST_CAMERA_PERMISSION = 0;
     private TextureView textureView;
     private CameraDevice cameraDevice;
@@ -47,6 +65,8 @@ public class CameraActivity extends AppCompatActivity {
     private HandlerThread backgroundHandlerThread;
     private Handler backgroundHandler;
     private CaptureRequest.Builder captureRequestBuilder;
+    private ImageReader imageReader;
+    private final OnImageAvailableListener onImageAvailableListener = new OnImageAvailableListener();
     //Sensor translation
     private static SparseIntArray ORIENTATIONS = new SparseIntArray();
     static {
@@ -222,13 +242,19 @@ public class CameraActivity extends AppCompatActivity {
         }
         Surface previewSurface = new Surface(surfaceTexture);
 
+        imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(), ImageFormat.YUV_420_888, 5);
+        imageReader.setOnImageAvailableListener(onImageAvailableListener, backgroundHandler);
+
         try {
 
             captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            captureRequestBuilder.addTarget(previewSurface);
-
+            //captureRequestBuilder.addTarget(previewSurface);
+            captureRequestBuilder.addTarget(imageReader.getSurface());
+            captureRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE, CaptureRequest.CONTROL_EFFECT_MODE_MONO);
+            
             //Session setup
-            cameraDevice.createCaptureSession(Arrays.asList(previewSurface), new CameraSessionStateCallback(), null);
+            //previewSurface
+            cameraDevice.createCaptureSession(Arrays.asList( imageReader.getSurface()), new CameraSessionStateCallback(), null);
         } catch (CameraAccessException | NullPointerException e) {
             throw new RuntimeException(e);
         }
@@ -238,6 +264,8 @@ public class CameraActivity extends AppCompatActivity {
         {
             cameraDevice.close();
             cameraDevice = null;
+            imageReader.close();
+            imageReader = null;
         }
     }
 
@@ -292,4 +320,68 @@ public class CameraActivity extends AppCompatActivity {
             return choices[0];
         }
     }
+    private class OnImageAvailableListener implements ImageReader.OnImageAvailableListener {
+        Matrix rotationMatrix = new Matrix();
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            Image image = null;
+            try {
+                image = reader.acquireLatestImage();
+                if (image != null) {
+                    byte[] jpegBytes = ImageUtilClass.toJpeg(image).toByteArray();
+                    Bitmap imageBitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
+                    Mat matObject = new Mat();
+                    Utils.bitmapToMat(imageBitmap, matObject);
+
+                    Mat destination = new Mat();
+
+                    Imgproc.cvtColor(matObject, destination, Imgproc.COLOR_RGB2GRAY);
+
+                    Utils.matToBitmap(destination, imageBitmap);
+                    //imageBitmap = Bitmap.createScaledBitmap(imageBitmap, textureView.getHeight(), textureView.getWidth(), true);
+                    int rotation = 0;
+                    try {
+                        rotation = sensorToDeviceRotation(((CameraManager) getSystemService(Context.CAMERA_SERVICE)).getCameraCharacteristics(cameraID), getWindowManager().getDefaultDisplay().getRotation());
+                        System.out.println(rotation);
+                    }
+                    catch (CameraAccessException e)
+                    {
+                        Log.e("DRAW BITMAP ON TEXTUREVIEW", "Unable to draw");
+                    }
+
+                    rotationMatrix.reset();
+                    rotationMatrix.postRotate(rotation + 180);
+                    imageBitmap = Bitmap.createBitmap(imageBitmap, 0, 0, imageBitmap.getWidth(), imageBitmap.getHeight(), rotationMatrix, true);
+                    //imageBitmap = Bitmap.createScaledBitmap(imageBitmap, textureView.getHeight(), textureView.getWidth(), true);
+                    final Bitmap bitmap = imageBitmap;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            drawBitmapOnTextureView(bitmap);
+                        }
+                    });
+
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (image != null) {
+                    image.close();
+                }
+            }
+        }
+
+        private void drawBitmapOnTextureView(Bitmap bitmap) {
+            SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
+            if (surfaceTexture != null) {
+                Canvas canvas = textureView.lockCanvas();
+                if (canvas != null) {
+                    canvas.drawBitmap(bitmap, 0, 0, null);
+                    textureView.unlockCanvasAndPost(canvas);
+                }
+            }
+        }
+    }
+
 }

@@ -143,7 +143,7 @@
         "rootBuildGradleFolder": "C:\\Users\\hook0\\AndroidStudioProjects\\Cybertech22",
         "sdkFolder": "X:\\AndroidSDK",
         "isBuildOnlyTargetAbiEnabled": true,
-        "ideBuildTargetAbi": "x86_64,arm64-v8a",
+        "ideBuildTargetAbi": "x86_64,x86",
         "isCmakeBuildCohabitationEnabled": false,
         "isPrefabEnabled": false
       },
