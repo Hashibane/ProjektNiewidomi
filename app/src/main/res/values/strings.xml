@@ -3,4 +3,5 @@
     <string name="opencv_version_4_9_0">OpenCV version 4.9.0</string>
     <string name="camera">Camera</string>
     <string name="apply">Apply</string>
+    <string name="go_back">go back</string>
 </resources>
